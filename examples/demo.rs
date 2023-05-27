@@ -35,7 +35,11 @@ fn spawn_sprite(mut commands: Commands) {
                 custom_size: Some(Vec2::splat(64.0)),
                 ..default()
             },
-            transform: Transform::from_xyz(rng.gen_range(-200.0 .. 200.0), rng.gen_range(-200.0 .. 200.0), 1.0),
+            transform: Transform::from_xyz(
+                rng.gen_range(-200.0..200.0),
+                rng.gen_range(-200.0..200.0),
+                1.0,
+            ),
             ..default()
         },
     ));
@@ -106,23 +110,25 @@ fn console_text_input(
 
 fn setup_console(world: &mut World) {
     let font = world.resource::<AssetServer>().load("Ubuntu-R.ttf");
-    let console = world.spawn(NodeBundle {
-        style: Style {
-            position_type: PositionType::Absolute,
-            position: UiRect {
-                bottom: Val::Percent(5.0),
-                left: Val::Percent(5.0),
-                top: Val::Auto,
-                right: Val::Auto,
+    let console = world
+        .spawn(NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    bottom: Val::Percent(5.0),
+                    left: Val::Percent(5.0),
+                    top: Val::Auto,
+                    right: Val::Auto,
+                },
+                padding: UiRect::all(Val::Px(8.0)),
+                align_items: AlignItems::Center,
+                ..Default::default()
             },
-            padding: UiRect::all(Val::Px(8.0)),
-            align_items: AlignItems::Center,
+            background_color: BackgroundColor(Color::BEIGE),
             ..Default::default()
-        },
-        background_color: BackgroundColor(Color::BEIGE),
-        ..Default::default()
-    }).id();
-    let prompt_style =  TextStyle {
+        })
+        .id();
+    let prompt_style = TextStyle {
         font: font.clone(),
         font_size: 24.0,
         color: Color::RED,
@@ -132,16 +138,18 @@ fn setup_console(world: &mut World) {
         font_size: 16.0,
         color: Color::BLACK,
     };
-    let prompt = world.spawn((
-        CliPrompt,
-        TextBundle {
-            text: Text::from_sections([
-                TextSection::new("~ ", prompt_style),
-                TextSection::new("", input_style),
-            ]),
-            ..Default::default()
-        },
-    )).id();
+    let prompt = world
+        .spawn((
+            CliPrompt,
+            TextBundle {
+                text: Text::from_sections([
+                    TextSection::new("~ ", prompt_style),
+                    TextSection::new("", input_style),
+                ]),
+                ..Default::default()
+            },
+        ))
+        .id();
     world.entity_mut(console).push_children(&[prompt]);
 }
 
@@ -150,44 +158,50 @@ struct DespawnTimeout(Timer);
 
 fn show_help(world: &mut World) {
     let font = world.resource::<AssetServer>().load("Ubuntu-R.ttf");
-    let help_box = world.spawn((
-        DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
-        NodeBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                position: UiRect {
-                    top: Val::Percent(5.0),
-                    left: Val::Percent(5.0),
-                    bottom: Val::Auto,
-                    right: Val::Auto,
+    let help_box = world
+        .spawn((
+            DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        top: Val::Percent(5.0),
+                        left: Val::Percent(5.0),
+                        bottom: Val::Auto,
+                        right: Val::Auto,
+                    },
+                    padding: UiRect::all(Val::Px(8.0)),
+                    align_items: AlignItems::Center,
+                    ..Default::default()
                 },
-                padding: UiRect::all(Val::Px(8.0)),
-                align_items: AlignItems::Center,
+                background_color: BackgroundColor(Color::BEIGE),
                 ..Default::default()
             },
-            background_color: BackgroundColor(Color::BEIGE),
-            ..Default::default()
-        },
-    )).id();
+        ))
+        .id();
     let text_style = TextStyle {
         font: font.clone(),
         font_size: 12.0,
         color: Color::BLACK,
     };
-    let prompt = world.spawn((
-        TextBundle {
+    let prompt = world
+        .spawn((TextBundle {
             text: Text::from_section(
                 "Available console commands: \"help\", \"hello\", \"spawn\", \"despawn\".\n
                 Left/Right mouse click will run \"spawn\"/\"despawn\".",
                 text_style,
             ),
             ..Default::default()
-        },
-    )).id();
+        },))
+        .id();
     world.entity_mut(help_box).push_children(&[prompt]);
 }
 
-fn despawn_timeout(mut commands: Commands, t: Res<Time>, mut q: Query<(Entity, &mut DespawnTimeout)>) {
+fn despawn_timeout(
+    mut commands: Commands,
+    t: Res<Time>,
+    mut q: Query<(Entity, &mut DespawnTimeout)>,
+) {
     for (e, mut timeout) in &mut q {
         timeout.0.tick(t.delta());
         if timeout.0.finished() {

@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::ecs::system::BoxedSystem;
+use bevy::prelude::*;
 use bevy::utils::HashMap;
 
 pub mod prelude {
@@ -26,7 +26,8 @@ pub trait CliCommandsRegisterExt {
     ///
     /// If a command with the same name already exists, it is replaced.
     fn register_clicommand<S, Param>(&mut self, name: &str, system: S) -> &mut Self
-    where S: IntoSystem<(), (), Param>;
+    where
+        S: IntoSystem<(), (), Param>;
     /// Remove a "console command", if it exists
     fn deregister_clicommand(&mut self, name: &str) -> &mut Self;
 }
@@ -40,12 +41,15 @@ pub trait CliCommandsRunExt {
 
 impl CliCommandsRegisterExt for World {
     fn register_clicommand<S, Param>(&mut self, name: &str, system: S) -> &mut Self
-    where S: IntoSystem<(), (), Param> {
+    where
+        S: IntoSystem<(), (), Param>,
+    {
         self.deregister_clicommand(name);
         self.init_resource::<CliCommands>();
         let mut system = IntoSystem::into_system(system);
         system.initialize(self);
-        self.resource_mut::<CliCommands>().commands
+        self.resource_mut::<CliCommands>()
+            .commands
             .insert(name.to_owned(), Some(Box::new(system)));
         self
     }
@@ -60,7 +64,9 @@ impl CliCommandsRegisterExt for World {
 
 impl CliCommandsRegisterExt for App {
     fn register_clicommand<S, Param>(&mut self, name: &str, system: S) -> &mut Self
-    where S: IntoSystem<(), (), Param> {
+    where
+        S: IntoSystem<(), (), Param>,
+    {
         self.world.register_clicommand(name, system);
         self
     }
@@ -81,8 +87,11 @@ impl CliCommandsRunExt for World {
         info!("Running CliCommand {:?}", name);
         system.run((), self);
         system.apply_buffers(self);
-        if let Some(cmd) = self.resource_mut::<CliCommands>().bypass_change_detection()
-            .commands.get_mut(name)
+        if let Some(cmd) = self
+            .resource_mut::<CliCommands>()
+            .bypass_change_detection()
+            .commands
+            .get_mut(name)
         {
             *cmd = Some(system);
         }
