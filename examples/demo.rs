@@ -1,16 +1,17 @@
 use std::time::Duration;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 use iyes_cli::prelude::*;
 use rand::prelude::*;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .register_clicommand("hello", hello_world)
-        .register_clicommand("help", show_help)
-        .register_clicommand("spawn", spawn_sprite)
-        .register_clicommand("despawn", despawn_sprites)
+        .register_clicommand_noargs("hello", hello_world)
+        .register_clicommand_noargs("help", show_help)
+        .register_clicommand_noargs("spawn", spawn_sprite_random)
+        .register_clicommand_args("spawn", spawn_sprite_at)
+        .register_clicommand_noargs("despawn", despawn_sprites)
         .add_startup_system(setup)
         .add_startup_system(setup_console)
         .add_system(mouseclicks)
@@ -24,8 +25,8 @@ fn hello_world() {
     println!("Hello, World!");
 }
 
-/// Implementation of the "spawn" command
-fn spawn_sprite(mut commands: Commands) {
+/// Implementation of the "spawn" command (noargs variant)
+fn spawn_sprite_random(mut commands: Commands) {
     let mut rng = thread_rng();
     commands.spawn((
         DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
@@ -45,6 +46,35 @@ fn spawn_sprite(mut commands: Commands) {
     ));
 }
 
+/// Implementation of the "spawn" command (args variant)
+fn spawn_sprite_at(In(args): In<Vec<String>>, mut commands: Commands) {
+    if args.len() != 2 {
+        error!("spawn command must take exactly 2 args!");
+        return;
+    }
+    let Ok(x) = args[0].parse::<f32>() else {
+        error!("spawn command args must be numbers!");
+        return;
+    };
+    let Ok(y) = args[1].parse::<f32>() else {
+        error!("spawn command args must be numbers!");
+        return;
+    };
+
+    commands.spawn((
+        DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
+        SpriteBundle {
+            sprite: Sprite {
+                color: Color::PINK,
+                custom_size: Some(Vec2::splat(64.0)),
+                ..default()
+            },
+            transform: Transform::from_xyz(x, y, 1.0),
+            ..default()
+        },
+    ));
+}
+
 /// Implementation of the "despawn" command
 fn despawn_sprites(mut commands: Commands, q: Query<Entity, With<Sprite>>) {
     for e in &q {
@@ -55,13 +85,24 @@ fn despawn_sprites(mut commands: Commands, q: Query<Entity, With<Sprite>>) {
 fn setup(world: &mut World) {
     // Example: you can call clicommands from exclusive systems
     world.run_clicommand("hello");
-    world.spawn(Camera2dBundle::default());
+    let mut camera = Camera2dBundle::default();
+    camera.projection.viewport_origin = Vec2::ZERO;
+    world.spawn(camera);
 }
 
 /// Example: you can call clicommands from regular systems, using Commands
 /// (they will run on `apply_system_buffers`)
-fn mouseclicks(mouse: Res<Input<MouseButton>>, mut commands: Commands) {
+fn mouseclicks(
+    q_window: Query<&Window, With<PrimaryWindow>>,
+    mouse: Res<Input<MouseButton>>,
+    mut commands: Commands,
+) {
     if mouse.just_pressed(MouseButton::Left) {
+        if let Some(cursor) = q_window.single().cursor_position() {
+            commands.run_clicommand(&format!("spawn {} {}", cursor.x, cursor.y));
+        }
+    }
+    if mouse.just_pressed(MouseButton::Middle) {
         commands.run_clicommand("spawn");
     }
     if mouse.just_pressed(MouseButton::Right) {
@@ -187,7 +228,7 @@ fn show_help(world: &mut World) {
     let prompt = world
         .spawn((TextBundle {
             text: Text::from_section(
-                "Available console commands: \"help\", \"hello\", \"spawn\", \"despawn\".\n
+                "Available console commands: \"help\", \"hello\", \"spawn\", \"spawn <x> <y>\", \"despawn\".\n
                 Left/Right mouse click will run \"spawn\"/\"despawn\".",
                 text_style,
             ),
