@@ -126,15 +126,19 @@ impl CliCommandsRunExt for World {
         let args: Vec<String> = iter.map(|s| s.to_owned()).collect();
 
         if !args.is_empty() {
-            let Some(mut system) = self.resource_mut::<CliCommands>().bypass_change_detection()
-                .commands_args.get_mut(name).and_then(|opt| opt.take())
+            let Some(mut system) = self
+                .resource_mut::<CliCommands>()
+                .bypass_change_detection()
+                .commands_args
+                .get_mut(name)
+                .and_then(|opt| opt.take())
             else {
                 warn!("CliCommand {:?} not found!", name);
                 return;
             };
             debug!("Running CliCommand {:?}, args: {:?}", name, args);
             system.run(args, self);
-            system.apply_buffers(self);
+            system.apply_deferred(self);
             if let Some(cmd) = self
                 .resource_mut::<CliCommands>()
                 .bypass_change_detection()
@@ -144,15 +148,19 @@ impl CliCommandsRunExt for World {
                 *cmd = Some(system);
             }
         } else {
-            let Some(mut system) = self.resource_mut::<CliCommands>().bypass_change_detection()
-                .commands_noargs.get_mut(name).and_then(|opt| opt.take())
+            let Some(mut system) = self
+                .resource_mut::<CliCommands>()
+                .bypass_change_detection()
+                .commands_noargs
+                .get_mut(name)
+                .and_then(|opt| opt.take())
             else {
                 warn!("CliCommand {:?} not found!", name);
                 return;
             };
             debug!("Running CliCommand {:?} (noargs)", name);
             system.run((), self);
-            system.apply_buffers(self);
+            system.apply_deferred(self);
             if let Some(cmd) = self
                 .resource_mut::<CliCommands>()
                 .bypass_change_detection()
@@ -180,7 +188,7 @@ impl<'w, 's> CliCommandsRunExt for Commands<'w, 's> {
 pub struct CliRunCommand(pub String);
 
 impl bevy::ecs::system::Command for CliRunCommand {
-    fn write(self, world: &mut World) {
+    fn apply(self, world: &mut World) {
         world.run_clicommand(&self.0);
     }
 }

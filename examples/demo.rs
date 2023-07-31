@@ -12,11 +12,8 @@ fn main() {
         .register_clicommand_noargs("spawn", spawn_sprite_random)
         .register_clicommand_args("spawn", spawn_sprite_at)
         .register_clicommand_noargs("despawn", despawn_sprites)
-        .add_startup_system(setup)
-        .add_startup_system(setup_console)
-        .add_system(mouseclicks)
-        .add_system(console_text_input)
-        .add_system(despawn_timeout)
+        .add_systems(Startup, (setup, setup_console))
+        .add_systems(Update, (mouseclicks, console_text_input, despawn_timeout))
         .run();
 }
 
@@ -26,7 +23,8 @@ fn hello_world() {
 }
 
 /// Implementation of the "spawn" command (noargs variant)
-fn spawn_sprite_random(mut commands: Commands) {
+fn spawn_sprite_random(q_window: Query<&Window, With<PrimaryWindow>>, mut commands: Commands) {
+    let window = q_window.single();
     let mut rng = thread_rng();
     commands.spawn((
         DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
@@ -37,8 +35,8 @@ fn spawn_sprite_random(mut commands: Commands) {
                 ..default()
             },
             transform: Transform::from_xyz(
-                rng.gen_range(-200.0..200.0),
-                rng.gen_range(-200.0..200.0),
+                rng.gen_range(0.0..window.width()),
+                rng.gen_range(0.0..window.height()),
                 1.0,
             ),
             ..default()
@@ -98,8 +96,13 @@ fn mouseclicks(
     mut commands: Commands,
 ) {
     if mouse.just_pressed(MouseButton::Left) {
-        if let Some(cursor) = q_window.single().cursor_position() {
-            commands.run_clicommand(&format!("spawn {} {}", cursor.x, cursor.y));
+        let window = q_window.single();
+        if let Some(cursor) = window.cursor_position() {
+            commands.run_clicommand(&format!(
+                "spawn {} {}",
+                cursor.x,
+                window.height() - cursor.y
+            ));
         }
     }
     if mouse.just_pressed(MouseButton::Middle) {
@@ -155,12 +158,10 @@ fn setup_console(world: &mut World) {
         .spawn(NodeBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                position: UiRect {
-                    bottom: Val::Percent(5.0),
-                    left: Val::Percent(5.0),
-                    top: Val::Auto,
-                    right: Val::Auto,
-                },
+                bottom: Val::Percent(5.0),
+                left: Val::Percent(5.0),
+                top: Val::Auto,
+                right: Val::Auto,
                 padding: UiRect::all(Val::Px(8.0)),
                 align_items: AlignItems::Center,
                 ..Default::default()
@@ -205,12 +206,10 @@ fn show_help(world: &mut World) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    position: UiRect {
-                        top: Val::Percent(5.0),
-                        left: Val::Percent(5.0),
-                        bottom: Val::Auto,
-                        right: Val::Auto,
-                    },
+                    top: Val::Percent(5.0),
+                    left: Val::Percent(5.0),
+                    bottom: Val::Auto,
+                    right: Val::Auto,
                     padding: UiRect::all(Val::Px(8.0)),
                     align_items: AlignItems::Center,
                     ..Default::default()
