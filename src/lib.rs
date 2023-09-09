@@ -13,8 +13,8 @@ pub mod prelude {
 /// Since all your commands are stored in this resource, they are per-World.
 #[derive(Resource, Default)]
 pub struct CliCommands {
-    commands_args: HashMap<String, Option<Box<dyn System<In = Vec<String>, Out = ()>>>>,
-    commands_noargs: HashMap<String, Option<Box<dyn System<In = (), Out = ()>>>>,
+    pub commands_args: HashMap<String, Option<Box<dyn System<In = Vec<String>, Out = ()>>>>,
+    pub commands_noargs: HashMap<String, Option<Box<dyn System<In = (), Out = ()>>>>,
 }
 
 /// Provides methods for managing the available "console commands"
