@@ -92,7 +92,7 @@ fn setup(world: &mut World) {
 /// (they will run on `apply_system_buffers`)
 fn mouseclicks(
     q_window: Query<&Window, With<PrimaryWindow>>,
-    mouse: Res<Input<MouseButton>>,
+    mouse: Res<ButtonInput<MouseButton>>,
     mut commands: Commands,
 ) {
     if mouse.just_pressed(MouseButton::Left) {
@@ -120,7 +120,7 @@ struct CliPrompt;
 fn console_text_input(
     mut commands: Commands,
     mut evr_char: EventReader<ReceivedCharacter>,
-    kbd: Res<Input<KeyCode>>,
+    kbd: Res<ButtonInput<KeyCode>>,
     mut query: Query<&mut Text, With<CliPrompt>>,
 ) {
     if kbd.just_pressed(KeyCode::Escape) {
@@ -130,7 +130,7 @@ fn console_text_input(
         evr_char.clear();
         return;
     }
-    if kbd.just_pressed(KeyCode::Return) {
+    if kbd.just_pressed(KeyCode::Enter) {
         for mut text in &mut query {
             commands.run_clicommand(&text.sections[1].value);
             text.sections[1].value = String::new();
@@ -138,16 +138,16 @@ fn console_text_input(
         evr_char.clear();
         return;
     }
-    if kbd.just_pressed(KeyCode::Back) {
+    if kbd.just_pressed(KeyCode::Backspace) {
         for mut text in &mut query {
             text.sections[1].value.pop();
         }
         evr_char.clear();
         return;
     }
-    for ev in evr_char.iter() {
+    for ev in evr_char.read() {
         for mut text in &mut query {
-            text.sections[1].value.push(ev.char);
+            text.sections[1].value.push(ev.char.chars().next().unwrap());
         }
     }
 }
