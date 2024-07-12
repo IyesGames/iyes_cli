@@ -1,3 +1,4 @@
+use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
 use bevy::utils::HashMap;
 
@@ -13,8 +14,8 @@ pub mod prelude {
 /// Since all your commands are stored in this resource, they are per-World.
 #[derive(Resource, Default)]
 pub struct CliCommands {
-    pub commands_args: HashMap<String, Option<Box<dyn System<In = Vec<String>, Out = ()>>>>,
-    pub commands_noargs: HashMap<String, Option<Box<dyn System<In = (), Out = ()>>>>,
+    pub commands_args: HashMap<String, SystemId<Vec<String>, ()>>,
+    pub commands_noargs: HashMap<String, SystemId<(), ()>>,
 }
 
 /// Provides methods for managing the available "console commands"
@@ -34,13 +35,13 @@ pub trait CliCommandsRegisterExt {
     /// If a command with the same name already exists, it is replaced.
     fn register_clicommand_noargs<S, Param>(&mut self, name: &str, system: S) -> &mut Self
     where
-        S: IntoSystem<(), (), Param>;
+        S: IntoSystem<(), (), Param> + 'static;
     /// Create a new "console command" with the given string and system/implementation
     ///
     /// If a command with the same name already exists, it is replaced.
     fn register_clicommand_args<S, Param>(&mut self, name: &str, system: S) -> &mut Self
     where
-        S: IntoSystem<Vec<String>, (), Param>;
+        S: IntoSystem<Vec<String>, (), Param> + 'static;
     /// Remove a "console command", if it exists
     ///
     /// `has_args` specifies whether you want to remove the "args" or "noargs" variant.
@@ -57,28 +58,26 @@ pub trait CliCommandsRunExt {
 impl CliCommandsRegisterExt for World {
     fn register_clicommand_noargs<S, Param>(&mut self, name: &str, system: S) -> &mut Self
     where
-        S: IntoSystem<(), (), Param>,
+        S: IntoSystem<(), (), Param> + 'static,
     {
         self.deregister_clicommand(name, false);
         self.init_resource::<CliCommands>();
-        let mut system = IntoSystem::into_system(system);
-        system.initialize(self);
+        let id = self.register_system(system);
         self.resource_mut::<CliCommands>()
             .commands_noargs
-            .insert(name.to_owned(), Some(Box::new(system)));
+            .insert(name.to_owned(), id);
         self
     }
     fn register_clicommand_args<S, Param>(&mut self, name: &str, system: S) -> &mut Self
     where
-        S: IntoSystem<Vec<String>, (), Param>,
+        S: IntoSystem<Vec<String>, (), Param> + 'static,
     {
         self.deregister_clicommand(name, true);
         self.init_resource::<CliCommands>();
-        let mut system = IntoSystem::into_system(system);
-        system.initialize(self);
+        let id = self.register_system(system);
         self.resource_mut::<CliCommands>()
             .commands_args
-            .insert(name.to_owned(), Some(Box::new(system)));
+            .insert(name.to_owned(), id);
         self
     }
     fn deregister_clicommand(&mut self, name: &str, has_args: bool) -> &mut Self {
@@ -97,20 +96,20 @@ impl CliCommandsRegisterExt for World {
 impl CliCommandsRegisterExt for App {
     fn register_clicommand_noargs<S, Param>(&mut self, name: &str, system: S) -> &mut Self
     where
-        S: IntoSystem<(), (), Param>,
+        S: IntoSystem<(), (), Param> + 'static,
     {
-        self.world.register_clicommand_noargs(name, system);
+        self.world_mut().register_clicommand_noargs(name, system);
         self
     }
     fn register_clicommand_args<S, Param>(&mut self, name: &str, system: S) -> &mut Self
     where
-        S: IntoSystem<Vec<String>, (), Param>,
+        S: IntoSystem<Vec<String>, (), Param> + 'static,
     {
-        self.world.register_clicommand_args(name, system);
+        self.world_mut().register_clicommand_args(name, system);
         self
     }
     fn deregister_clicommand(&mut self, name: &str, has_args: bool) -> &mut Self {
-        self.world.deregister_clicommand(name, has_args);
+        self.world_mut().deregister_clicommand(name, has_args);
         self
     }
 }
@@ -120,54 +119,36 @@ impl CliCommandsRunExt for World {
         // TODO: support quotes and other such fancy syntax?
         let mut iter = cli.split_ascii_whitespace();
         let Some(name) = iter.next() else {
-            warn!("Attempted to run empty CLI string!");
+            error!("Attempted to run empty CLI string!");
             return;
         };
         let args: Vec<String> = iter.map(|s| s.to_owned()).collect();
 
         if !args.is_empty() {
-            let Some(mut system) = self
-                .resource_mut::<CliCommands>()
-                .bypass_change_detection()
+            let Some(id) = self
+                .resource::<CliCommands>()
                 .commands_args
-                .get_mut(name)
-                .and_then(|opt| opt.take())
+                .get(name)
             else {
-                warn!("CliCommand {:?} not found!", name);
+                error!("CliCommand {:?} not found!", name);
                 return;
             };
             debug!("Running CliCommand {:?}, args: {:?}", name, args);
-            system.run(args, self);
-            system.apply_deferred(self);
-            if let Some(cmd) = self
-                .resource_mut::<CliCommands>()
-                .bypass_change_detection()
-                .commands_args
-                .get_mut(name)
-            {
-                *cmd = Some(system);
+            if let Err(e) = self.run_system_with_input(id.clone(), args) {
+                error!("CliCommand {:?} failed to run: {}", name, e);
             }
         } else {
-            let Some(mut system) = self
-                .resource_mut::<CliCommands>()
-                .bypass_change_detection()
+            let Some(id) = self
+                .resource::<CliCommands>()
                 .commands_noargs
-                .get_mut(name)
-                .and_then(|opt| opt.take())
+                .get(name)
             else {
                 warn!("CliCommand {:?} not found!", name);
                 return;
             };
             debug!("Running CliCommand {:?} (noargs)", name);
-            system.run((), self);
-            system.apply_deferred(self);
-            if let Some(cmd) = self
-                .resource_mut::<CliCommands>()
-                .bypass_change_detection()
-                .commands_noargs
-                .get_mut(name)
-            {
-                *cmd = Some(system);
+            if let Err(e) = self.run_system(id.clone()) {
+                error!("CliCommand {:?} failed to run: {}", name, e);
             }
         }
     }
@@ -175,7 +156,7 @@ impl CliCommandsRunExt for World {
 
 impl CliCommandsRunExt for App {
     fn run_clicommand(&mut self, name: &str) {
-        self.world.run_clicommand(name);
+        self.world_mut().run_clicommand(name);
     }
 }
 
@@ -187,7 +168,7 @@ impl<'w, 's> CliCommandsRunExt for Commands<'w, 's> {
 
 pub struct CliRunCommand(pub String);
 
-impl bevy::ecs::system::Command for CliRunCommand {
+impl bevy::ecs::world::Command for CliRunCommand {
     fn apply(self, world: &mut World) {
         world.run_clicommand(&self.0);
     }

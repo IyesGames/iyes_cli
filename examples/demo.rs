@@ -30,7 +30,7 @@ fn spawn_sprite_random(q_window: Query<&Window, With<PrimaryWindow>>, mut comman
         DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
         SpriteBundle {
             sprite: Sprite {
-                color: Color::PINK,
+                color: Color::srgb(0.9, 0.1, 0.7),
                 custom_size: Some(Vec2::splat(64.0)),
                 ..default()
             },
@@ -63,7 +63,7 @@ fn spawn_sprite_at(In(args): In<Vec<String>>, mut commands: Commands) {
         DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
         SpriteBundle {
             sprite: Sprite {
-                color: Color::PINK,
+                color: Color::srgb(0.9, 0.1, 0.7),
                 custom_size: Some(Vec2::splat(64.0)),
                 ..default()
             },
@@ -166,14 +166,14 @@ fn setup_console(world: &mut World) {
                 align_items: AlignItems::Center,
                 ..Default::default()
             },
-            background_color: BackgroundColor(Color::BEIGE),
+            background_color: BackgroundColor(Color::srgb(0.9, 0.8, 0.7)),
             ..Default::default()
         })
         .id();
     let prompt_style = TextStyle {
         font: font.clone(),
         font_size: 24.0,
-        color: Color::RED,
+        color: Color::srgb(0.8, 0.1, 0.1),
     };
     let input_style = TextStyle {
         font: font.clone(),
@@ -214,7 +214,7 @@ fn show_help(world: &mut World) {
                     align_items: AlignItems::Center,
                     ..Default::default()
                 },
-                background_color: BackgroundColor(Color::BEIGE),
+            background_color: BackgroundColor(Color::srgb(0.9, 0.8, 0.7)),
                 ..Default::default()
             },
         ))
