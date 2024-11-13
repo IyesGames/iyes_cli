@@ -1,13 +1,13 @@
 use std::time::Duration;
 
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{input::{keyboard::{Key, KeyboardInput}, ButtonState}, prelude::*, window::PrimaryWindow};
 use iyes_cli::prelude::*;
 use rand::prelude::*;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .register_clicommand_noargs("hello", hello_world)
+        .register_clicommand_args("hello", hello_world)
         .register_clicommand_noargs("help", show_help)
         .register_clicommand_noargs("spawn", spawn_sprite_random)
         .register_clicommand_args("spawn", spawn_sprite_at)
@@ -18,8 +18,12 @@ fn main() {
 }
 
 /// Implementation of the "hello" command
-fn hello_world() {
-    println!("Hello, World!");
+fn hello_world(In(args): In<Vec<String>>) {
+    print!("Hello");
+    for arg in args {
+        print!(", {}", arg);
+    }
+    println!("!");
 }
 
 /// Implementation of the "spawn" command (noargs variant)
@@ -28,19 +32,16 @@ fn spawn_sprite_random(q_window: Query<&Window, With<PrimaryWindow>>, mut comman
     let mut rng = thread_rng();
     commands.spawn((
         DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
-        SpriteBundle {
-            sprite: Sprite {
-                color: Color::srgb(0.9, 0.1, 0.7),
-                custom_size: Some(Vec2::splat(64.0)),
-                ..default()
-            },
-            transform: Transform::from_xyz(
-                rng.gen_range(0.0..window.width()),
-                rng.gen_range(0.0..window.height()),
-                1.0,
-            ),
+        Sprite {
+            color: Color::srgb(0.9, 0.1, 0.7),
+            custom_size: Some(Vec2::splat(64.0)),
             ..default()
         },
+        Transform::from_xyz(
+            rng.gen_range(0.0..window.width()),
+            rng.gen_range(0.0..window.height()),
+            1.0,
+        ),
     ));
 }
 
@@ -61,15 +62,12 @@ fn spawn_sprite_at(In(args): In<Vec<String>>, mut commands: Commands) {
 
     commands.spawn((
         DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
-        SpriteBundle {
-            sprite: Sprite {
-                color: Color::srgb(0.9, 0.1, 0.7),
-                custom_size: Some(Vec2::splat(64.0)),
-                ..default()
-            },
-            transform: Transform::from_xyz(x, y, 1.0),
+        Sprite {
+            color: Color::srgb(0.9, 0.1, 0.7),
+            custom_size: Some(Vec2::splat(64.0)),
             ..default()
         },
+        Transform::from_xyz(x, y, 1.0),
     ));
 }
 
@@ -82,14 +80,17 @@ fn despawn_sprites(mut commands: Commands, q: Query<Entity, With<Sprite>>) {
 
 fn setup(world: &mut World) {
     // Example: you can call clicommands from exclusive systems
-    world.run_clicommand("hello");
-    let mut camera = Camera2dBundle::default();
-    camera.projection.viewport_origin = Vec2::ZERO;
-    world.spawn(camera);
+    world.run_cli("hello");
+    world.spawn((
+        Camera2d,
+        OrthographicProjection {
+            viewport_origin: Vec2::ZERO,
+            ..OrthographicProjection::default_2d()
+        },
+    ));
 }
 
 /// Example: you can call clicommands from regular systems, using Commands
-/// (they will run on `apply_system_buffers`)
 fn mouseclicks(
     q_window: Query<&Window, With<PrimaryWindow>>,
     mouse: Res<ButtonInput<MouseButton>>,
@@ -98,7 +99,7 @@ fn mouseclicks(
     if mouse.just_pressed(MouseButton::Left) {
         let window = q_window.single();
         if let Some(cursor) = window.cursor_position() {
-            commands.run_clicommand(&format!(
+            commands.run_cli(&format!(
                 "spawn {} {}",
                 cursor.x,
                 window.height() - cursor.y
@@ -106,10 +107,10 @@ fn mouseclicks(
         }
     }
     if mouse.just_pressed(MouseButton::Middle) {
-        commands.run_clicommand("spawn");
+        commands.run_cli("spawn");
     }
     if mouse.just_pressed(MouseButton::Right) {
-        commands.run_clicommand("despawn");
+        commands.run_cli("despawn");
     }
 }
 
@@ -119,35 +120,31 @@ struct CliPrompt;
 /// Implement a simple "console" to type commands in
 fn console_text_input(
     mut commands: Commands,
-    mut evr_char: EventReader<ReceivedCharacter>,
-    kbd: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut Text, With<CliPrompt>>,
+    mut evr_kbd: EventReader<KeyboardInput>,
+    mut text: Single<&mut Text, With<CliPrompt>>,
 ) {
-    if kbd.just_pressed(KeyCode::Escape) {
-        for mut text in &mut query {
-            text.sections[1].value = String::new();
+    for ev in evr_kbd.read() {
+        if let ButtonState::Released = ev.state {
+            continue;
         }
-        evr_char.clear();
-        return;
-    }
-    if kbd.just_pressed(KeyCode::Enter) {
-        for mut text in &mut query {
-            commands.run_clicommand(&text.sections[1].value);
-            text.sections[1].value = String::new();
-        }
-        evr_char.clear();
-        return;
-    }
-    if kbd.just_pressed(KeyCode::Backspace) {
-        for mut text in &mut query {
-            text.sections[1].value.pop();
-        }
-        evr_char.clear();
-        return;
-    }
-    for ev in evr_char.read() {
-        for mut text in &mut query {
-            text.sections[1].value.push(ev.char.chars().next().unwrap());
+        match (&ev.key_code, &ev.logical_key) {
+            (KeyCode::Escape, _) => {
+                text.0 = String::new();
+            }
+            (KeyCode::Enter, _) => {
+                commands.run_cli(&text.0);
+                text.0 = String::new();
+            }
+            (KeyCode::Backspace, _) => {
+                text.0.pop();
+            }
+            (_, Key::Space) => {
+                text.0.push(' ');
+            }
+            (_, Key::Character(s)) => {
+                text.0.push_str(s.as_str());
+            }
+            _ => {}
         }
     }
 }
@@ -155,8 +152,8 @@ fn console_text_input(
 fn setup_console(world: &mut World) {
     let font = world.resource::<AssetServer>().load("Ubuntu-R.ttf");
     let console = world
-        .spawn(NodeBundle {
-            style: Style {
+        .spawn((
+            Node {
                 position_type: PositionType::Absolute,
                 bottom: Val::Percent(5.0),
                 left: Val::Percent(5.0),
@@ -164,35 +161,23 @@ fn setup_console(world: &mut World) {
                 right: Val::Auto,
                 padding: UiRect::all(Val::Px(8.0)),
                 align_items: AlignItems::Center,
-                ..Default::default()
+                ..default()
             },
-            background_color: BackgroundColor(Color::srgb(0.9, 0.8, 0.7)),
-            ..Default::default()
-        })
+            BackgroundColor(Color::srgb(0.9, 0.8, 0.7)),
+        ))
         .id();
-    let prompt_style = TextStyle {
-        font: font.clone(),
-        font_size: 24.0,
-        color: Color::srgb(0.8, 0.1, 0.1),
-    };
-    let input_style = TextStyle {
-        font: font.clone(),
-        font_size: 16.0,
-        color: Color::BLACK,
-    };
     let prompt = world
         .spawn((
             CliPrompt,
-            TextBundle {
-                text: Text::from_sections([
-                    TextSection::new("~ ", prompt_style),
-                    TextSection::new("", input_style),
-                ]),
-                ..Default::default()
+            Text::new(""),
+            TextFont {
+                font: font.clone(),
+                font_size: 16.0,
+                ..default()
             },
         ))
         .id();
-    world.entity_mut(console).push_children(&[prompt]);
+    world.entity_mut(console).add_children(&[prompt]);
 }
 
 #[derive(Component)]
@@ -203,38 +188,33 @@ fn show_help(world: &mut World) {
     let help_box = world
         .spawn((
             DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
-            NodeBundle {
-                style: Style {
-                    position_type: PositionType::Absolute,
-                    top: Val::Percent(5.0),
-                    left: Val::Percent(5.0),
-                    bottom: Val::Auto,
-                    right: Val::Auto,
-                    padding: UiRect::all(Val::Px(8.0)),
-                    align_items: AlignItems::Center,
-                    ..Default::default()
-                },
-            background_color: BackgroundColor(Color::srgb(0.9, 0.8, 0.7)),
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Percent(5.0),
+                left: Val::Percent(5.0),
+                bottom: Val::Auto,
+                right: Val::Auto,
+                padding: UiRect::all(Val::Px(8.0)),
+                align_items: AlignItems::Center,
                 ..Default::default()
+            },
+            BackgroundColor(Color::srgb(0.9, 0.8, 0.7)),
+        ))
+        .id();
+    let text = world
+        .spawn((
+            Text::new(
+                "Available console commands: \"help\", \"hello\", \"spawn\", \"spawn <x> <y>\", \"despawn\".\n
+                Left/Right mouse click will run \"spawn\"/\"despawn\".",
+            ),
+            TextFont {
+                font: font.clone(),
+                font_size: 12.0,
+                ..default()
             },
         ))
         .id();
-    let text_style = TextStyle {
-        font: font.clone(),
-        font_size: 12.0,
-        color: Color::BLACK,
-    };
-    let prompt = world
-        .spawn((TextBundle {
-            text: Text::from_section(
-                "Available console commands: \"help\", \"hello\", \"spawn\", \"spawn <x> <y>\", \"despawn\".\n
-                Left/Right mouse click will run \"spawn\"/\"despawn\".",
-                text_style,
-            ),
-            ..Default::default()
-        },))
-        .id();
-    world.entity_mut(help_box).push_children(&[prompt]);
+    world.entity_mut(help_box).add_children(&[text]);
 }
 
 fn despawn_timeout(
