@@ -152,7 +152,7 @@ impl CliCommandsRunExt for World {
             return;
         };
 
-        if !args.is_empty() {
+        if args.len() > 1 {
             if let Some(id) = cmd.args {
                 debug!("Running CliCommand {:?} with args: {:?}", name, args);
                 if let Err(e) = self.run_system_with_input(id, args) {
