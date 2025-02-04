@@ -134,14 +134,18 @@ impl CliCommandsRegisterExt for App {
 impl CliCommandsRunExt for World {
     fn run_cli(&mut self, cli: &str) {
         // TODO: support quotes and other such fancy syntax?
-        let mut iter = cli.trim().split_ascii_whitespace();
 
-        let Some(name) = iter.next() else {
+        let cli = cli.trim();
+
+        let Some(name) = cli.split_ascii_whitespace().next() else {
             error!("Attempted to run empty CLI string!");
             return;
         };
 
-        let args: Vec<String> = iter.map(|s| s.to_owned()).collect();
+        let args: Vec<String> = cli
+            .split_ascii_whitespace()
+            .map(|s| s.to_owned())
+            .collect();
 
         let Some(cmd) = self.resource::<CliCommands>().commands.get(name) else {
             error!("CliCommand {:?} not found!", name);
@@ -157,7 +161,10 @@ impl CliCommandsRunExt for World {
                 // DONE!
                 return;
             } else {
-                warn!("CliCommand {:?} does not support args; discarding args!", name);
+                warn!(
+                    "CliCommand {:?} does not support args; discarding args!",
+                    name
+                );
             }
         }
 
