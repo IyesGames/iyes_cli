@@ -1,6 +1,6 @@
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
-use bevy::utils::HashMap;
+use bevy::platform_support::collections::HashMap;
 
 pub mod prelude {
     pub use crate::{CliCommandsRegisterExt, CliCommandsRunExt};
@@ -155,7 +155,7 @@ impl CliCommandsRunExt for World {
         if args.len() > 1 {
             if let Some(id) = cmd.args {
                 debug!("Running CliCommand {:?} with args: {:?}", name, args);
-                if let Err(e) = self.run_system_with_input(id, args) {
+                if let Err(e) = self.run_system_with(id, args) {
                     error!("CliCommand {:?} failed to run: {}", name, e);
                 }
                 // DONE!
@@ -175,7 +175,7 @@ impl CliCommandsRunExt for World {
             }
         } else if let Some(id) = cmd.args {
             debug!("Running CliCommand {:?} (empty args)", name);
-            if let Err(e) = self.run_system_with_input(id, vec![]) {
+            if let Err(e) = self.run_system_with(id, vec![]) {
                 error!("CliCommand {:?} failed to run: {}", name, e);
             }
         } else {
@@ -198,7 +198,7 @@ impl CliCommandsRunExt for Commands<'_, '_> {
 
 pub struct CliRunCommand(pub String);
 
-impl bevy::ecs::world::Command for CliRunCommand {
+impl Command for CliRunCommand {
     fn apply(self, world: &mut World) {
         world.run_cli(&self.0);
     }

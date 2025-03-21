@@ -28,7 +28,7 @@ fn hello_world(In(args): In<Vec<String>>) {
 
 /// Implementation of the "spawn" command (noargs variant)
 fn spawn_sprite_random(q_window: Query<&Window, With<PrimaryWindow>>, mut commands: Commands) {
-    let window = q_window.single();
+    let window = q_window.single().unwrap();
     let mut rng = thread_rng();
     commands.spawn((
         DespawnTimeout(Timer::new(Duration::from_secs(5), TimerMode::Once)),
@@ -83,10 +83,10 @@ fn setup(world: &mut World) {
     world.run_cli("hello");
     world.spawn((
         Camera2d,
-        OrthographicProjection {
+        Projection::from(OrthographicProjection {
             viewport_origin: Vec2::ZERO,
             ..OrthographicProjection::default_2d()
-        },
+        }),
     ));
 }
 
@@ -97,7 +97,7 @@ fn mouseclicks(
     mut commands: Commands,
 ) {
     if mouse.just_pressed(MouseButton::Left) {
-        let window = q_window.single();
+        let window = q_window.single().unwrap();
         if let Some(cursor) = window.cursor_position() {
             commands.run_cli(&format!(
                 "spawn {} {}",
@@ -175,6 +175,7 @@ fn setup_console(world: &mut World) {
                 font_size: 16.0,
                 ..default()
             },
+            TextColor(Color::BLACK),
         ))
         .id();
     world.entity_mut(console).add_children(&[prompt]);
@@ -225,7 +226,7 @@ fn despawn_timeout(
     for (e, mut timeout) in &mut q {
         timeout.0.tick(t.delta());
         if timeout.0.finished() {
-            commands.entity(e).despawn_recursive();
+            commands.entity(e).despawn();
         }
     }
 }
